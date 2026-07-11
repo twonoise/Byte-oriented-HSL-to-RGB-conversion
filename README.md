@@ -7,10 +7,11 @@ Today's display monitors use RGB color model, and this determines that programme
 
 In order of trying to make applications's colors more precise, flexible, easier to define when more than just few colors are need, and due to eye health care reasons like high contrast modes; or, when not just storage, but processing or generating of colors is required; -- one earlier or later notices that RGB is fairly inconsistent for that, so it's time to next level of understanding, HSL (or HSV) color model.
 
-It is essentially more convenient and predictable for color operations, like make it brighter or darker, or even invert luma (brightness) without color damage, so red stays red, not aqua as per RGB inversion.
+It is essentially more convenient and predictable for color operations, like make it brighter or darker, or even invert luma (brightness) without color damage, so red stays red, not aqua as per RGB inversion. If you need a bunch of colors for your diagram, then the answer will be like `hsl-to-rgb(N, 192, 64)` for paper and `(N, 192, 192)` for screen; how will you do it with RGB? Same if you need say day-of-week-dependent accents for your web page.
 
 Current display monitors can't operate with HSL color model yet. So, conversion is need.
 Let's look at bare HSL (without various compensations, as seen below TODO). It have the property that it keeps full dynamic range, and thus color itself, during RGB->HSL->RGB conversion.
+
 Sadly, these conversions are quite not simple nor obvious. There are many forms of these, more or less precise or fast. But none byte-oriented one I found so far. Most known converters uses either (360, 101, 101) integer range, or (1.0, 1.0, 1.0) float range, while byte-range like (256, 256, 256) integer range are most demanded, due to constants define, storage, and processing. It is not a big secret that say (1.0, 1.0, 1.0) float range can be easily recalculated as byte range, and most time it's done like that. But when we want higher efficiency, known converters should be re-thinked as integer math with byte-range both input and output. Bytes are guarantees that there is no over/undershoot possible, makes them a requirement for hi-rel apps.
 
 The problem with integer math is it way harder than floats. Here I am try to see if it will work, and how fast and precise it is.
