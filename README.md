@@ -1,7 +1,7 @@
 # Byte oriented HSL to RGB conversion
 
 Integer converter with byte input and output
-============================================
+--------------------------------------------
 
 Today's display monitors use RGB color model, and this determines that programmer select this notation as obvious for _storing_ color constants.
 
