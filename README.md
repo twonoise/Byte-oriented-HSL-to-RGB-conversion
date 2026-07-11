@@ -43,6 +43,8 @@ while use [^2] tool shows for _hsl(0, 95%, 18%)_
 
 Note that precision of w3c color model itself is low, due to it uses range of only `101` for `S` & `L`.
 
+Both my `hsl2rgb` and `hsl2rgb_fast` are perfect candidates to be implemented with hardware, at display scaler IC, for future HSL display monitors. HSL on display cable is not have any disadvantage. Ask me if one need a 10-bit version for that.
+
 I hope the C code i provide, is self-explaining as much as possible, and can be useful. Please let me know if it can be made faster or better.
 
 [^1]: https://axonflux.com/handy-rgb-to-hsl-and-rgb-to-hsv-color-model-c
