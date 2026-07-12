@@ -7,7 +7,7 @@ Today's display monitors use RGB color model, and this determines that programme
 
 In order of trying to make applications's colors more precise, flexible, easier to define when more than just few colors are need, and due to eye health care reasons like high contrast modes; or, when not just storage, but processing or generating of colors is required; -- one earlier or later notices that RGB is fairly inconsistent for that, so it's time to next level of understanding, HSL (or HSV) color model.
 
-It is essentially more convenient and predictable for color operations, like make it brighter or darker, or even invert luma (brightness) without color damage, so red stays red, not aqua as per RGB inversion. If you need a bunch of colors for your diagram, then the answer will be like `hsl-to-rgb(N, 192, 64)` for paper and `(N, 192, 192)` for screen; how will you do it with RGB? Same if you need say day-of-week-dependent accents for your web page.
+It is essentially more convenient and predictable for color operations, like make it brighter or darker, or even invert luma (brightness) without color damage, so red stays red, not aqua as per RGB inversion. If you need a bunch of colors for your diagram, then the answer will be like `HSL(N, 192, 64)` for paper and `(N, 192, 192)` for screen; how will you do it with RGB? Same if you need say day-of-week-dependent accents for your web page.
 
 Current display monitors can't operate with HSL color model yet. So, conversion is need.
 Let's look at bare HSL (without various compensations, as seen below TODO). It have the property that it keeps full dynamic range, and thus color itself, during RGB->HSL->RGB conversion.
@@ -50,7 +50,7 @@ I hope the C code i provide, is self-explaining as much as possible, and can be 
 Equibright correction
 ---------------------
 
-While regular (full range) HSL works well, one may note earlier or later that, using it for color sets generation, yellow color looks way brighter than blue. This is not due to conversion bug or HSL model itself, as its purpose is to correctly remix color channels from/to RGB, and it does it well. Rather, we fall here into **perceptual brightness** trouble. It is evil enough, as it not only does not have more or less settled solution, but also highly dependent on display monitor type and epoch, and personal taste.
+While regular (full range) HSL works well, one may note earlier or later that, using it for color sets generation, yellow color looks way brighter than blue. This is not due to conversion bug or HSL model itself, as its purpose is to correctly remix color channels from/to RGB, and it does it well. Rather, we fall here into **perceptual brightness** trouble. It is evil enough, as it not only does not have more or less settled solution, but also highly dependent on display monitor type and epoch, and personal taste. Good news are, here HSL also plays its best, as for it, correction expected to be doable and fast enough, while, for RGB, can be a pain (tip: think about white balance).
 
 Note that any correction will limit dynamic range of display unit used, as well as, does it non reversible any more, as it will eat dynamic range. Full correction requires quite bright display, as only tenth (pure yellow to pure blue perceptual brightness ratio) will then be used for regular pictures.
 
