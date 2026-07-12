@@ -47,6 +47,32 @@ Both my `hsl2rgb` and `hsl2rgb_fast` are perfect candidates to be implemented wi
 
 I hope the C code i provide, is self-explaining as much as possible, and can be useful. Please let me know if it can be made faster or better.
 
+Equibright correction
+---------------------
+
+While regular (full range) HSL works well, one may note earlier or later that, using it for color sets generation, yellow color looks way brighter than blue. This is not due to conversion bug or HSL model itself, as its purpose is to correctly remix color channels from/to RGB, and it does it well. Rather, we fall here into **perceptual brightness** trouble. It is evil enough, as it not only does not have more or less settled solution, but also highly dependent on display monitor type and epoch, and personal taste.
+
+Note that any correction will limit dynamic range of display unit used, as well as, does it non reversible any more, as it will eat dynamic range. Full correction requires quite bright display, as only tenth (pure yellow to pure blue perceptual brightness ratio) will then be used for regular pictures.
+
+At other side, we can try correct luminance, which may allow to use regular existing display monitors. Obviously, increase luminance say for pure blue (i.e. already 100% display's power spent for blue pixel) is impossible without some color damage.
+
+Of course, equibright should not be used for anything other than color sets generation (by its definition). So most time the latter approach looks useful. Let's try to set up some hue-dependent correction curve:
+
+    MAX(48-MIN(hue,255-hue),0) + MAX(16-abs(hue-85),0) + MAX(64-abs(hue-165),0) + MAX(64-abs(hue-185),0); /* Input is hue, 0..255 */
+
+which gives us
+
+<img src="img/equibright-correction.png">
+
+As this correction is for fully saturated (pure) colors, some linear decompensation should be added for less than full saturation.
+
+Results show way better colors and color sets generation, so it will be used in my Carla patches, Jasmine-SA, and Simple.c window decorator.
+
+Note that, as equibright is only for color generation, the speed is no any importance, compared to regular HSL->RGB above. But still i approximate the curve with integer linear math, so i expect it be fast enough.
+
+Note also the curve itself still far from ideal, if this "ideal" possible ever, as it is highly varies with display device technology, like, OLEDs are have much powerful blue channel. You may tune it up for your display.
+
+
 [^1]: https://axonflux.com/handy-rgb-to-hsl-and-rgb-to-hsv-color-model-c
 [^2]: https://www.w3schools.com/tools/tool_color_converter.php
 [^3]: https://gist.github.com/twonoise/940c979ad3d0d9fc59fdefa5edd82a08
