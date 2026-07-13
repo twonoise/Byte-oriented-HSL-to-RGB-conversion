@@ -66,7 +66,7 @@ which gives us
 
 As this correction is for fully saturated (pure) colors, some linear decompensation should be added for less than full saturation.
 
-Results show way better colors and color sets generation, so it will be used in my Carla patches, Jasmine-SA, and Simple.c window decorator.
+Results show way better colors and color sets generation, so it will be used in my Carla patches, Jasmine-SA, and [Simple.c window decorator](https://github.com/twonoise/simple.c/blob/1c9cd5a07199f416c63a99fa9ec6bbae2fb1d694/simple.c#L226).
 
 Note that, as equibright is only for color generation, the speed is no any importance, compared to regular HSL->RGB above. But still i approximate the curve with integer linear math, so i expect it be fast enough.
 
