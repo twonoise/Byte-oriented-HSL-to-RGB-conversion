@@ -68,9 +68,11 @@ As this correction is for fully saturated (pure) colors, some linear decompensat
 
 Results show way better colors and color sets generation, so it will be used in my Carla patches, Jasmine-SA, and [Simple.c window decorator](https://github.com/twonoise/simple.c/blob/1c9cd5a07199f416c63a99fa9ec6bbae2fb1d694/simple.c#L226).
 
-Note that, as equibright is only for color generation, the speed is no any importance, compared to regular HSL->RGB above. But still i approximate the curve with integer linear math, so i expect it be fast enough.
+Note that, as equibright is only for color generation, the speed is no any importance, unlike of regular HSL->RGB above. But still i approximate the curve with integer linear math, so i expect it be fast enough. Or, look-up lable, created with Bezier line, may give better speed and "precision".
 
-Note also the curve itself still far from ideal, if this "ideal" possible ever, as it is highly varies with display device technology, like, OLEDs are have much powerful blue channel. You may tune it up for your display.
+2nd note is, unlike regular or full-range HSL, with our perceprually luma-corrected one (sometimes called **HSP**), there is impossible to generate most _pure_ colors like yellow or blue (also, by its definition).
+
+Note also the current curve itself still far from ideal, if this "ideal" possible ever, as it is highly varies with display device technology, like, OLEDs are have much powerful blue channel. You may tune it up for your display.
 
 
 [^1]: https://axonflux.com/handy-rgb-to-hsl-and-rgb-to-hsv-color-model-c
