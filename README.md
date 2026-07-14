@@ -16,7 +16,7 @@ Sadly, these conversions are quite not simple nor obvious. There are many forms 
 
 The problem with integer math is it way harder than floats. Here I am try to see if it will work, and how fast and precise it is.
 
-I will use this reference code [^1]; this one, as well as any other you may find, are uses float math. This time it will be only one way, HSL->RGB. This solves most of tasks; not solved ones are include luma inversion of images (icons). TODO.
+I will use this reference code [^1]; this one, as well as any other you may find, include for 8-bit slow microcontrollers (_sic!_), are **uses float math**. This time I will try only one way, HSL->RGB. This solves most of tasks; not solved ones are include luma inversion of images (icons). TODO.
 
 I provide C code here for research of precision and speed.
 
@@ -52,7 +52,9 @@ Equibright correction
 
 While regular (full range) HSL works well, one may note earlier or later that, using it for color sets generation, yellow color looks way brighter than blue. This is not due to conversion bug or HSL model itself, as its purpose is to correctly remix color channels from/to RGB, and it does it well. Rather, we fall here into **perceptual brightness** trouble. It is evil enough, as it not only does not have more or less settled solution, but also highly dependent on display monitor type and epoch, and personal taste. Good news are, here HSL also plays its best, as for it, correction expected to be doable and fast enough, while, for RGB, can be a pain (tip: think about white balance).
 
-Note that any correction will limit dynamic range of display unit used, as well as, does it non reversible any more, as it will eat dynamic range. Full correction requires quite bright display, as only tenth (pure yellow to pure blue perceptual brightness ratio) will then be used for regular pictures.
+Note that any correction will limit dynamic range of display unit used, as well as, does it non reversible any more, as it will eat dynamic range; i.e., complementary RGB->HSL (TODO) exist only for plain (full range) HSL. 
+
+Full correction requires quite bright display, as only tenth (pure yellow to pure blue perceptual brightness ratio) will then be used for regular pictures.
 
 At other side, we can try correct luminance, which may allow to use regular existing display monitors. Obviously, increase luminance say for pure blue (i.e. already 100% display's power spent for blue pixel) is impossible without some color damage.
 
