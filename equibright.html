@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Customize Equibright correction curve</title>
+    <style>
+        canvas { border: 1px solid white; border-style: dotted; }
+        body { color: lightgray; background-color: black; }
+    </style>
+</head>
+<body>
+    <p>Please use Left and Middle mouse buttons drag, as well as wheel, to get equal perceptual brightness for your display monitor. Just pressing these buttons makes some filtering. Values above zero (central line) will make impossible pure colors; while values below zero are reduces brightness (dynamic range) of picture, and may require OS support and/or higher brightness display monitor.</p>
+    <p>Equibright is impossible without one of both of these drawbacks. Amount of each in percent makes name of correction model; typical model for regular display will be like 90:10 to 80:20.</p>
+    <p> <div id="model"></div> </p>
+    <canvas id="canvas" width="513" height="257"></canvas>
+    <script>
+        const y0 = 128 + 0.5;
+
+        // Based on https://stackoverflow.com/a/44134328
+        function hslToRgbChannel(h, s, l, ch) { // ch is 0, 8, 4
+            l = l / 255;
+            const a = s * Math.min(l, 1 - l) / 255;
+            const k = (ch + h / (256 / 12)) % 12;
+            return l - a * Math.max(Math.min(Math.min(k - 3, 9 - k), 1), -1); // 0...1
+        }
+
+        function hslToRgb(h, s, l) {   // Inputs are bytes, result is uint32
+            return Math.trunc(255 * hslToRgbChannel (h, s, l, 0)) * 65536 +
+                   Math.trunc(255 * hslToRgbChannel (h, s, l, 8)) * 256 +
+                   Math.trunc(255 * hslToRgbChannel (h, s, l, 4));
+        }
+
+        function hslToRgbCorr(h, s, l, q) {   // h, s, l are bytes, q is signed int, result is uint32
+            const corr = (q * s * Math.min(l, 255 - l)) / (255*127);
+            l = l + corr;
+
+            return hslToRgb(h, s, l);
+        }
+
+        // Hue-dependent brightness. Square rule isn't work, as it says orange is darker than red. Even linear rule looks still non adequate. So I use sq root rule. Anyway it's just an initial values.
+        let p = new Float32Array(256);
+        let rgb = new Uint32Array(256);
+        for (let i = 0; i < 256; i++) {
+            rgb[i] = hslToRgb(i, 255, 127);
+            p[i] = 60.0 - (
+                    ((rgb[i] >> 16) & 255) ** 0.5 * 0.3 +
+                    ((rgb[i] >>  8) & 255) ** 0.5 * 0.59 +
+                     (rgb[i]        & 255) ** 0.5 * 0.11) * 6.0;
+        }
+
+        function draw(ctx) {
+            ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.strokeStyle = 'lightgray';
+            ctx.moveTo(0, y0);
+            ctx.lineTo(513, y0);
+            ctx.stroke();
+
+            for (let i = 0; i <= 512; i++) {
+                const n = (i + 128) % 256;
+                ctx.beginPath();
+                ctx.strokeStyle = 'white';
+                ctx.arc(i, y0 - p[n], 1, 0, 2 * Math.PI);
+                ctx.stroke();
+
+                ctx.beginPath();
+                ctx.strokeStyle = '#' + rgb[n].toString(16).padStart(6, "0");
+                ctx.moveTo(i, 100);
+                ctx.lineTo(i, 120);
+                ctx.stroke();
+
+                ctx.beginPath();
+                ctx.strokeStyle = '#' + hslToRgbCorr(n, 255, 127, p[n]).toString(16).padStart(6, "0");
+                ctx.moveTo(i, 140);
+                ctx.lineTo(i, 160);
+                ctx.stroke();
+            }
+
+            var s = '';
+            var pmin = 999;
+            var pmax = -999;
+            var model = '(undefined)';
+            for (let i = 0; i < 256; i++) {
+                const pp = Math.trunc(p[i]);
+                s = s + pp.toString() + ', ';
+                pmin = Math.min(pmin, pp);
+                pmax = Math.max(pmin, pp);
+            }
+            if (pmax - pmin != 0) {
+                const percent = Math.max(Math.min(Math.trunc(pmax/(pmax - pmin) * 100), 100), 0);
+                model = percent.toString() + ':' + (100 - percent).toString();
+            }
+
+            const modelElement = document.getElementById('model');
+            modelElement.innerHTML = 'Current model name is ' + model + ' (min corr ' + pmin.toString() + ', max corr ' + pmax.toString() + ').';
+            const outputElement = document.getElementById('output');
+            outputElement.innerHTML = '<small>' + s + '</small>';
+        }
+
+        function drawCircle(ctx, x, y, d, dash) {
+            ctx.beginPath();
+            ctx.strokeStyle = 'white';
+            ctx.arc(x, y0 - y, d - 1, 0, 2 * Math.PI);
+            ctx.stroke();
+        }
+
+        var d = 0;   // Distance
+        var dir = 0; // Direction
+        var mx_old = 0;
+        var my_old = 0;
+
+        window.onload = function() {
+            const canvas = document.getElementById('canvas');
+            const ctx = canvas.getContext('2d');
+            draw(ctx);
+
+            let drawing = false;
+            canvas.addEventListener('mousedown', () => {
+                // drawing = true;
+                const mx = event.clientX - canvas.offsetLeft;
+                const my = y0 - (event.clientY - canvas.offsetTop);
+                mx_old = mx;
+                my_old = my;
+
+                if (event.buttons & 4) {
+
+                } else {
+                    d = 100;
+                    dir = 0;
+                    for (let i = 0; i < 512; i++) {
+                    const j = p[(i + 128) % 256];
+                        const dd = Math.sqrt((i - mx) ** 2 + (j - my) ** 2);
+                        if (dd < d)
+                            d = dd;
+                        if (i == mx)
+                            dir = (j - my) > 0 ? 1 : -1;
+                    }
+                    drawing = (dir != 0);
+                    drawCircle(ctx, mx, my, d, dir);
+                }
+            });
+
+            canvas.addEventListener('wheel', (event) => {
+                for (let i = 0; i < 256; i++)
+                    p[i] = p[i] * ((event.deltaY > 0) ? 1.05 : (1 / 1.05));
+                draw(ctx);
+            });
+
+            canvas.addEventListener('mousemove', (event) => {
+                const mx = event.clientX - canvas.offsetLeft;
+                const my = y0 - (event.clientY - canvas.offsetTop);
+
+                if (event.buttons & 4) {
+                    for (let i = 0; i < 256; i++)
+                        p[i] = p[i] + (my - my_old);
+                    draw(ctx);
+                    mx_old = mx;
+                    my_old = my;
+                } else
+                    if (drawing) {
+                        for (let i = Math.max(mx - Math.trunc(d) - 1, 0);
+                                 i < Math.min(mx + Math.trunc(d) + 1, 512); i++)
+                            while (Math.sqrt((i - mx) ** 2 +
+                                   (p[(i + 128) % 256] - my) ** 2) < d)
+                                p[(i + 128) % 256] += dir * 0.1;
+
+                        draw(ctx);
+                        drawCircle(ctx, mx, my, d, dir);
+                    }
+            });
+
+            canvas.addEventListener('mouseup', () => {
+                drawing = false;
+
+                // Some FIR (window) smooth. It's not so precise, as works in-place.
+                for (let i = 0; i < 256; i++)
+                    p[i] = (p[(i+254)%256] + p[(i+255)%256] + p[i] + p[(i+1)%256] + p[(i+2)%256]) / 5.0;
+
+                draw(ctx);
+            });
+
+            canvas.addEventListener('mouseout', () => {
+                drawing = false;
+                draw(ctx);
+            });
+        }
+    </script>
+    <p>
+    Then copy this into your byte-oriented <tt>HSL2RGB(h, s, l)</tt>, before its math:
+    </p>
+    <tt>
+    /* Equibright curve is hue->brightness func for fully saturate. */<br>
+    int q[256] = { <div id="output"></div> }<br>
+    /* Decompensate the curve for not full saturation. */<br>
+    int p = q[h] * s * MIN(l, 255 - l) / (255*127);<br>
+    l = l + p; /* Hope we never overflow uint8 here? */<br>
+    </tt>
+    <p>Please check some examples <a href="https://github.com/twonoise/Byte-oriented-HSL-to-RGB-conversion">here.</a></p>
+</body>
+</html>
+
+
