@@ -10,12 +10,25 @@
     </style>
 </head>
 <body>
-    <p>Please use Left and Middle mouse buttons drag, as well as wheel, to get equal perceptual brightness for your display monitor. Just pressing these buttons makes some filtering. Values above zero (central line) will make impossible pure colors; while values below zero are reduces brightness (dynamic range) of picture, and may require OS support and/or higher brightness display monitor.</p>
-    <p>Equibright is impossible without one of both of these drawbacks. Amount of each in percent makes name of correction model; typical model for regular display will be like 90:10 to 80:20.</p>
-    <p> <div id="model"></div> </p>
-    <canvas id="canvas" width="513" height="257"></canvas>
+    <p>Please use Left and Middle mouse buttons drag, as well as wheel, to get equal perceptual brightness for your display monitor. Double click is some filtering. Values above zero (central line) will make impossible pure colors; while values below zero are reduces brightness (dynamic range) of picture, and may require OS support and/or higher brightness display monitor.</p>
+    <p>Equibright is impossible without one of both of these drawbacks. Amount of each in percent makes name of correction proportion; typical one for regular display will be like 90:10 to 60:40.</p>
+    <p> <div id="prop"></div> </p>
+    <canvas id="canvas" width="513" height="513"></canvas>
     <script>
+        const USE_WHEEL = 1;
+        if (USE_WHEEL)
+            window.addEventListener("wheel", e => e.preventDefault(), { passive:false });
+
         const y0 = 128 + 0.5;
+
+        // TODO replace to 1d array
+        var bayer = Array.from(Array(16), () => new Array(16));
+        for (let x = 0; x < 16; x++)
+            for (let y = 0; y < 16; y++)
+                bayer[x][y] = ((!!(y & 8) *   2 - !!(x & 8) *  1) &   3)
+                            + ((!!(y & 4) *   8 - !!(x & 4) *  4) &  12)
+                            + ((!!(y & 2) *  32 - !!(x & 2) * 16) &  48)
+                            + ((!!(y & 1) * 128 - !!(x & 1) * 64) & 192);
 
         // Based on https://stackoverflow.com/a/44134328
         function hslToRgbChannel(h, s, l, ch) { // ch is 0, 8, 4
@@ -34,20 +47,22 @@
         function hslToRgbCorr(h, s, l, q) {   // h, s, l are bytes, q is signed int, result is uint32
             const corr = (q * s * Math.min(l, 255 - l)) / (255*127);
             l = l + corr;
-
             return hslToRgb(h, s, l);
         }
 
-        // Hue-dependent brightness. Square rule isn't work, as it says orange is darker than red. Even linear rule looks still non adequate. So I use sq root rule. Anyway it's just an initial values.
-        let p = new Float32Array(256);
+        // Hue-dependent brightness, some initial values.
+        let p = new Float32Array(256).fill(0);
         let rgb = new Uint32Array(256);
         for (let i = 0; i < 256; i++) {
             rgb[i] = hslToRgb(i, 255, 127);
-            p[i] = 60.0 - (
-                    ((rgb[i] >> 16) & 255) ** 0.5 * 0.3 +
-                    ((rgb[i] >>  8) & 255) ** 0.5 * 0.59 +
-                     (rgb[i]        & 255) ** 0.5 * 0.11) * 6.0;
+            p[i] = 168 - (
+                    (((rgb[i] >> 16) & 255 )/ 255.0) ** 2.0 * 0.45 +
+                    (((rgb[i] >>  8) & 255 )/ 255.0) ** 2.0 * 0.63 +
+                     ((rgb[i]        & 255 )/ 255.0) ** 2.0 * 0.08) ** 0.22 * 224;
         }
+
+        var satCorr = 255;
+        var lumaCorr = 127;
 
         function draw(ctx) {
             ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
@@ -58,51 +73,82 @@
             ctx.lineTo(513, y0);
             ctx.stroke();
 
-            for (let i = 0; i <= 512; i++) {
-                const n = (i + 128) % 256;
+            var imageData = ctx.createImageData(513, 256);
+            var data = imageData.data;
+            for (let x = 0; x <= 512; x++) {
+                const n = (x + 128) % 256;
+                const rgbRef = rgb[n];
+                const rgbFullSatCorr = hslToRgbCorr(n, 255, 127, p[n]);
+                const rgbCorr = hslToRgbCorr(n, satCorr, lumaCorr, p[n]);
+
                 ctx.beginPath();
                 ctx.strokeStyle = 'white';
-                ctx.arc(i, y0 - p[n], 1, 0, 2 * Math.PI);
+                ctx.arc(x, y0 - p[n], 1, 0, 2 * Math.PI);
                 ctx.stroke();
 
                 ctx.beginPath();
-                ctx.strokeStyle = '#' + rgb[n].toString(16).padStart(6, "0");
-                ctx.moveTo(i, 100);
-                ctx.lineTo(i, 120);
+                ctx.strokeStyle = '#' + rgbRef.toString(16).padStart(6, "0");
+                ctx.moveTo(x, 100);
+                ctx.lineTo(x, 120);
                 ctx.stroke();
 
                 ctx.beginPath();
-                ctx.strokeStyle = '#' + hslToRgbCorr(n, 255, 127, p[n]).toString(16).padStart(6, "0");
-                ctx.moveTo(i, 140);
-                ctx.lineTo(i, 160);
+                ctx.strokeStyle = '#' + rgbFullSatCorr.toString(16).padStart(6, "0");
+                ctx.moveTo(x, 140);
+                ctx.lineTo(x, 160);
                 ctx.stroke();
+
+                for (let y = 0; y < 256; y++) {
+                    const b = (Math.trunc(y / grain) * grain > bayer[Math.trunc(x / grain) % 16][Math.trunc(y / grain) % 16]);
+                    data[(x + y * 513) * 4 + 0] = b ? lumaCorr : (rgbCorr >> 16) & 255;
+                    data[(x + y * 513) * 4 + 1] = b ? lumaCorr : (rgbCorr >> 8) & 255;
+                    data[(x + y * 513) * 4 + 2] = b ? lumaCorr : rgbCorr & 255;
+                    data[(x + y * 513) * 4 + 3] = 255;
+                }
             }
+            ctx.putImageData(imageData, 0, 256);
 
             var s = '';
             var pmin = 999;
             var pmax = -999;
-            var model = '(undefined)';
+            var prop = '(undefined)';
             for (let i = 0; i < 256; i++) {
                 const pp = Math.trunc(p[i]);
                 s = s + pp.toString() + ', ';
                 pmin = Math.min(pmin, pp);
-                pmax = Math.max(pmin, pp);
+                pmax = Math.max(pmax, pp);
             }
             if (pmax - pmin != 0) {
                 const percent = Math.max(Math.min(Math.trunc(pmax/(pmax - pmin) * 100), 100), 0);
-                model = percent.toString() + ':' + (100 - percent).toString();
+                prop = percent.toString() + ':' + (100 - percent).toString();
             }
 
-            const modelElement = document.getElementById('model');
-            modelElement.innerHTML = 'Current model name is ' + model + ' (min corr ' + pmin.toString() + ', max corr ' + pmax.toString() + ').';
+            const modelElement = document.getElementById('prop');
+            modelElement.innerHTML = 'Current proportion name is ' + prop + ' (min corr ' + pmin.toString() + ', max corr ' + pmax.toString() + ').';
             const outputElement = document.getElementById('output');
             outputElement.innerHTML = '<small>' + s + '</small>';
         }
 
-        function drawCircle(ctx, x, y, d, dash) {
-            ctx.beginPath();
+        function drawCircle(ctx, x, y, d) {
             ctx.strokeStyle = 'white';
+            ctx.beginPath();
             ctx.arc(x, y0 - y, d - 1, 0, 2 * Math.PI);
+            ctx.stroke();
+        }
+
+        function drawArrow(ctx, x, y, d) {
+            x = x + 0.5;
+            y = y0 - y + 0.5;
+            ctx.strokeStyle = 'white';
+            ctx.beginPath();
+            ctx.moveTo(x, y + d);
+            ctx.lineTo(x - d/4, y + d/2);
+            ctx.lineTo(x + d/4, y + d/2);
+            ctx.lineTo(x, y + d);
+            ctx.lineTo(x, y - d);
+            ctx.lineTo(x - d/4, y - d/2);
+            ctx.lineTo(x + d/4, y - d/2);
+            ctx.lineTo(x, y - d);
             ctx.stroke();
         }
 
@@ -110,74 +156,86 @@
         var dir = 0; // Direction
         var mx_old = 0;
         var my_old = 0;
+        var grain = 1;
 
         window.onload = function() {
             const canvas = document.getElementById('canvas');
             const ctx = canvas.getContext('2d');
             draw(ctx);
 
+            canvas.addEventListener('dblclick', (event) => {
+                // if (event.clientY < 512) not work
+                // if (event.offsetY < 512) not work
+                // FIR (windowing) smooth filter. It's not so precise, as works in-place.
+                for (let i = 0; i < 256; i++)
+                    p[i] = (p[(i+254)%256] + p[(i+255)%256] + p[i] + p[(i+1)%256] + p[(i+2)%256]) / 5.0;
+                draw(ctx);
+            });
+
             let drawing = false;
             canvas.addEventListener('mousedown', () => {
-                // drawing = true;
-                const mx = event.clientX - canvas.offsetLeft;
-                const my = y0 - (event.clientY - canvas.offsetTop);
+                const mx = event.offsetX;
+                const my = y0 - event.offsetY;
                 mx_old = mx;
                 my_old = my;
 
                 if (event.buttons & 4) {
-
+                    drawArrow(ctx, mx, my, 32);
                 } else {
-                    d = 100;
-                    dir = 0;
-                    for (let i = 0; i < 512; i++) {
-                    const j = p[(i + 128) % 256];
-                        const dd = Math.sqrt((i - mx) ** 2 + (j - my) ** 2);
-                        if (dd < d)
-                            d = dd;
-                        if (i == mx)
-                            dir = (j - my) > 0 ? 1 : -1;
+                    if (my < -128) {
+                        grain = (grain == 1) ? 2 : (grain == 2) ? 4 : 1;
+                    } else {
+                        d = 100;
+                        dir = 0;
+                        for (let i = 0; i < 512; i++) {
+                        const j = p[(i + 128) % 256];
+                            const dd = Math.sqrt((i - mx) ** 2 + (j - my) ** 2);
+                            if (dd < d)
+                                d = dd;
+                            if (i == mx)
+                                dir = (j - my) > 0 ? 1 : -1;
+                        }
+                        drawing = (dir != 0);
+                        drawCircle(ctx, mx, my, d);
                     }
-                    drawing = (dir != 0);
-                    drawCircle(ctx, mx, my, d, dir);
                 }
             });
 
-            canvas.addEventListener('wheel', (event) => {
-                for (let i = 0; i < 256; i++)
-                    p[i] = p[i] * ((event.deltaY > 0) ? 1.05 : (1 / 1.05));
-                draw(ctx);
-            });
+            if (USE_WHEEL)
+                canvas.addEventListener('wheel', (event) => {
+                    for (let i = 0; i < 256; i++)
+                        p[i] = p[i] * ((event.deltaY > 0) ? 1.05 : (1 / 1.05));
+                    draw(ctx);
+                });
 
             canvas.addEventListener('mousemove', (event) => {
-                const mx = event.clientX - canvas.offsetLeft;
-                const my = y0 - (event.clientY - canvas.offsetTop);
+                const mx = event.offsetX;
+                const my = y0 - event.offsetY;
 
                 if (event.buttons & 4) {
-                    for (let i = 0; i < 256; i++)
-                        p[i] = p[i] + (my - my_old);
+                    if (my > -128) {
+                        for (let i = 0; i < 256; i++)
+                            p[i] = p[i] + (my - my_old);
+                    } else {
+                        satCorr  = Math.max(Math.min(satCorr  + (mx - mx_old), 255), 0);
+                        lumaCorr = Math.max(Math.min(lumaCorr + (my - my_old), 255), 0);
+                        canvas.setAttribute('title', 'Sat: ' + satCorr.toString() + ', Luma: ' + lumaCorr.toString());
+                    }
                     draw(ctx);
+                    drawArrow(ctx, mx, my, 32);
                     mx_old = mx;
                     my_old = my;
-                } else
-                    if (drawing) {
-                        for (let i = Math.max(mx - Math.trunc(d) - 1, 0);
-                                 i < Math.min(mx + Math.trunc(d) + 1, 512); i++)
-                            while (Math.sqrt((i - mx) ** 2 +
-                                   (p[(i + 128) % 256] - my) ** 2) < d)
-                                p[(i + 128) % 256] += dir * 0.1;
-
-                        draw(ctx);
-                        drawCircle(ctx, mx, my, d, dir);
-                    }
+                } else if (drawing) {
+                    for (let i = Math.max(mx - Math.trunc(d) - 1, 0); i < Math.min(mx + Math.trunc(d) + 1, 513); i++)
+                        while (Math.sqrt((i - mx) ** 2 + (p[(i + 128) % 256] - my) ** 2) < d)
+                            p[(i + 128) % 256] += dir * 0.1;
+                    draw(ctx);
+                    drawCircle(ctx, mx, my, d);
+                }
             });
 
             canvas.addEventListener('mouseup', () => {
                 drawing = false;
-
-                // Some FIR (window) smooth. It's not so precise, as works in-place.
-                for (let i = 0; i < 256; i++)
-                    p[i] = (p[(i+254)%256] + p[(i+255)%256] + p[i] + p[(i+1)%256] + p[(i+2)%256]) / 5.0;
-
                 draw(ctx);
             });
 
@@ -187,9 +245,7 @@
             });
         }
     </script>
-    <p>
-    Then copy this into your byte-oriented <tt>HSL2RGB(h, s, l)</tt>, before its math:
-    </p>
+    <p>Then copy this into your byte-oriented <tt>HSL2RGB(h, s, l)</tt>, before its math:</p>
     <tt>
     /* Equibright curve is hue->brightness func for fully saturate. */<br>
     int q[256] = { <div id="output"></div> }<br>
